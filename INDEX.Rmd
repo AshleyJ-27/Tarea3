@@ -1,0 +1,346 @@
+---
+title: "Tarea 3"
+date: '2022-07-09'
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    theme:
+      version: 3
+      bootswatch: cosmo
+---
+# Introducción
+Estudiantes:   
+Ashley Jump Bustamante C14058  
+Nataly Montoya Campos C05060
+
+Este sitio web muestra visualizaciones de estadísticas policiales de delitos cometidos en Costa Rica durante 2021, en forma de tablas y gráficos estadísticos. Fue desarrollado como un documento [R Markdown](https://rmarkdown.rstudio.com/), como parte del curso [GF-0604 Procesamiento de datos geográficos](https://gf0604-procesamientodatosgeograficos.github.io/2022-i/) de la [Escuela de Geografía](https://www.geografia.fcs.ucr.ac.cr/) de la [Universidad de Costa Rica](https://www.ucr.ac.cr/), impartido durante el primer ciclo lectivo de 2022. El código fuente se encuentra en [https://github.com/gf0604-procesamientodatosgeograficos/2022-i-tarea-02-delitos-rmarkdown](https://github.com/gf0604-procesamientodatosgeograficos/2022-i-tarea-02-delitos-rmarkdown).
+
+
+### Paquetes de R
+Las visualizaciones fueron desarrolladas en el lenguaje de programación [R](https://www.R-project.org/) y los paquetes utilizados para la realización de la tarea 3 fueron : flexdashboard, readxl, lubridate,dplyr, ggplot2, ggthemes, plotly, DT, leaflet y readr
+
+```{r setup, include=FALSE}
+# Carga de paquetes
+
+library(flexdashboard)
+library(readxl) # lectura de datos en Excel
+library(lubridate) # manejo de fechas
+library(dplyr) # manipulación de datos
+library(ggplot2) # graficación estadística
+library(ggthemes) # estilos para ggplot2 
+library(plotly) # graficación estadística
+library(DT) # tablas interactivas
+library(leaflet)
+library(readr)
+library(sf)
+library(stringi)
+```
+
+### Datos
+#### Estadísticas policiales
+Es un [archivo Excel (.xls)](estadisticaspoliciales2021.xls) con registros de delitos cometidos en Costa Rica durante el año 2021. Es publicado regularmente por el Organismo de Investigación Judicial (OIJ) en el sitio web [Datos abiertos del OIJ](https://sitiooij.poder-judicial.go.cr/index.php/ayuda/servicios-policiales/servicios-a-organizaciones/indice-de-transparencia-del-sector-publico-costarricense/datos-abiertos).
+
+```{r lectura-transformacion.datos-delitos}
+# Estadísticas policiales
+estadisticas_policiales <- read_xls(path = "estadisticaspoliciales2021.xls")
+
+# Columna con el mes del año
+estadisticas_policiales <-
+  estadisticas_policiales %>%
+  mutate(Mes = month(Fecha))
+```
+
+
+# Tabla de datos
+```{r Transformación de datos}
+estadisticas_policiales %>%
+  select(Delito, Fecha, Victima, Edad, Genero, Provincia, Canton, Mes) %>%
+  mutate(Fecha = as.Date(Fecha, format = "%d/%m/%Y"))%>%
+  datatable(
+    colnames = c(
+      "Delito",
+      "Fecha",
+      "Víctima",
+      "Edad",
+      "Género",
+      "Provincia",
+      "Cantón",
+      "Mes"
+    ),
+    options = list(
+      pageLength = 10,
+      language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Spanish.json')
+    )
+  )
+```
+
+
+# Gráficos
+column {data-width=350}
+--------------------------------------------
+### Chart A
+
+```{r Gráfico por delito}
+grafico_por_tipo_de_delito <-
+  estadisticas_policiales %>%
+  count(Delito) %>%
+  ggplot(aes(x = reorder(Delito, n), y = n)) +
+  geom_bar(stat = "identity") +
+  ggtitle("Cantidad de delitos por tipo") +
+  xlab("Tipo de delito") +
+  ylab("Cantidad") +
+  coord_flip() + 
+  theme_pander()
+
+grafico_por_tipo_de_delito %>%
+  ggplotly() %>%
+  config(locale = 'es')
+```
+
+
+### Chart B
+
+```{r Gráfico por victima}
+grafico_por_tipo_de_victima <-
+  estadisticas_policiales %>%
+  count(Victima) %>%
+  ggplot(aes(x = reorder(Victima, n), y = n)) +
+  geom_bar(stat = "identity") +
+  ggtitle("Cantidad de delitos por víctima") +
+  xlab("Víctima") +
+  ylab("Cantidad") +
+  coord_flip() + 
+  theme_gdocs()
+
+grafico_por_tipo_de_victima %>%
+  ggplotly() %>%
+  config(locale = 'es')
+```
+
+column {data-width=350}
+---------------------------------------------------
+
+### Chart C
+
+```{r Gráfico por mes}
+grafico_por_mes <-
+  estadisticas_policiales %>%
+  count(Mes) %>%
+  ggplot(aes(x = reorder(Mes, Mes), y = n)) +
+  geom_bar(stat = "identity") +
+  ggtitle("Cantidad de delitos por mes") +
+  xlab("Mes") +
+  ylab("Cantidad de delitos") +
+  theme_economist_white() 
+
+grafico_por_mes %>%
+  ggplotly() %>%
+  config(locale = 'es')
+```
+
+
+### Chart D
+
+```{r Gráfico por genero}
+grafico_por_genero <-
+  estadisticas_policiales %>%
+  ggplot(aes(x = Delito, fill = Genero)) +
+  geom_bar(position = "fill") +
+  ggtitle("Proporciones de géneros por tipo de delito") +
+  xlab("Tipo de delito") +
+  ylab("Proporción") +
+  labs(fill = "Género") +
+  coord_flip() + 
+  theme_classic()
+
+ggplotly(grafico_por_genero) %>% config(locale = 'es')
+```
+
+
+# Mapa
+
+```{r Carga archivo de cantones}
+cantones_simplificados <-
+  st_read(
+    dsn = "C:/Users/50685/Desktop/Prosesamiento de datos/Tarea3/cantones_simplificados.geojson",
+    quiet = TRUE
+  ) %>%
+   st_transform(4326)
+```
+
+```{r Normalización de nombres}
+# En el data frame de cantones
+cantones_simplificados <-
+  cantones_simplificados %>%
+  mutate(canton_normalizado = tolower(stri_trans_general(canton, id = "Latin-ASCII")))
+
+# En el data frame de delitos
+estadisticas_policiales <-
+  estadisticas_policiales %>%
+  mutate(canton_normalizado = tolower(stri_trans_general(Canton, id = "Latin-ASCII")))
+```
+
+```{r Unión de delitos-cantones, echo=FALSE, include=FALSE}
+estadisticas_policiales %>%
+  left_join(
+    dplyr::select(st_drop_geometry(cantones_simplificados),
+                  canton_normalizado, cod_canton),
+    by = "canton_normalizado",
+    copy = FALSE,
+    keep = FALSE
+  ) %>%
+  filter(is.na(cod_canton) & canton_normalizado != "desconocido") %>% 
+  distinct(canton_normalizado)
+```
+
+
+
+```{r Corrección de nombres}
+estadisticas_policiales <-
+  estadisticas_policiales %>%
+  mutate(Canton = if_else(Canton == "LEON CORTES", "LEON CORTES CASTRO", Canton)) %>%
+  mutate(Canton = if_else(Canton == "VASQUEZ DE CORONADO", "VAZQUEZ DE CORONADO", Canton))
+```
+
+
+
+```{r Verificación de corrección, echo=FALSE, include=FALSE}
+estadisticas_policiales <-
+  estadisticas_policiales %>%
+  mutate(canton_normalizado = tolower(stri_trans_general(Canton, id = "Latin-ASCII")))
+
+estadisticas_policiales %>%
+  left_join(
+    dplyr::select(st_drop_geometry(cantones_simplificados),
+                  canton_normalizado, cod_canton),
+    by = "canton_normalizado",
+    copy = FALSE,
+    keep = FALSE
+  ) %>%
+  filter(is.na(cod_canton) & canton_normalizado != "desconocido") %>% 
+  distinct(canton_normalizado) 
+```
+
+```{r Unión de delitos-cantones_normalizados}
+estadisticas_policiales <-
+  estadisticas_policiales %>%
+  left_join(
+    dplyr::select(
+      st_drop_geometry(cantones_simplificados),
+      cod_canton,
+      canton_normalizado
+    ),
+    by = "canton_normalizado",
+    copy = FALSE,
+    keep = FALSE
+  )
+```
+
+Column {data-weidth= 600}
+--------------------------------------------------
+
+### Tabla de datos de delito por cantón
+```{r}
+# Conteo de registros por código de cantón
+delitos_por_canton <-
+  estadisticas_policiales %>%
+  count(cod_canton, name = "Delitos")
+
+# Unión de cantidad de delitos por cantón a cantones
+cantones_simplificados_por_delitos <-
+  cantones_simplificados %>%
+  left_join(
+    delitos_por_canton,
+    by = "cod_canton",
+    copy = FALSE,
+    keep = FALSE
+  )
+
+# Visualización en formato de tabla
+cantones_simplificados_por_delitos %>%
+  st_drop_geometry() %>%
+  select(canton, Delitos) %>%
+  arrange(desc(Delitos)) %>%
+  datatable(options = list(
+    pageLength = 10,
+    language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Spanish.json')
+  ))
+```
+
+
+
+
+```{r Paleta de colores}
+colores_cantones_delitos <-
+  colorNumeric(palette = "Reds",
+               domain = cantones_simplificados_por_delitos$Delitos,
+               na.color = "transparent")
+```
+
+
+```{r Coropletas, echo=FALSE, include=FALSE}
+plot(
+  cantones_simplificados_por_delitos["Delitos"],
+  extent = st_bbox(c(xmin = -86.0, xmax = -82.3, ymin = 8.0, ymax = 11.3)),
+  col = colores_cantones_delitos(cantones_simplificados_por_delitos$Delitos),
+  main = "Cantidad de delitos por cantón",
+  axes = TRUE,
+  graticule = TRUE
+)
+```
+
+
+### Mapa en leaflet
+```{r Mapa coropletas}
+leaflet() %>%
+  setView(# centro y nivel inicial de acercamiento
+    lng = -84.19452,
+    lat = 9.572735,
+    zoom = 7) %>%
+  addTiles(group = "OpenStreetMap") %>% # capa base
+  addPolygons(
+    # capa de polígonos
+    data = cantones_simplificados_por_delitos,
+    fillColor = ~ colores_cantones_delitos(cantones_simplificados_por_delitos$Delitos),
+    fillOpacity = 0.8,
+    color = "black",
+    stroke = TRUE,
+    weight = 1.0,
+    popup = paste(
+      # ventana emergente
+      paste(
+        "<strong>Cantón:</strong>",
+        cantones_simplificados_por_delitos$canton
+      ),
+      paste(
+        "<strong>Delitos:</strong>",
+        cantones_simplificados_por_delitos$Delitos
+      ),
+      sep = '<br/>'
+    ),
+    group = "Delitos en cantones"
+  ) %>%
+  addLayersControl(
+    # control de capas
+    baseGroups = c("OpenStreetMap"),
+    overlayGroups = c("Delitos en cantones")
+  ) %>%
+  addLegend(
+    # leyenda
+    position = "bottomleft",
+    pal = colores_cantones_delitos,
+    values = cantones_simplificados_por_delitos$Delitos,
+    group = "Delitos",
+    title = "Cantidad de delitos"
+  )
+```
+
+
+
+
+
+
+
+
+
+
