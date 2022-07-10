@@ -16,6 +16,7 @@ Nataly Montoya Campos C05060
 Este sitio web muestra visualizaciones de estadísticas policiales de delitos cometidos en Costa Rica durante 2021, en forma de tablas y gráficos estadísticos. Fue desarrollado como un documento [R Markdown](https://rmarkdown.rstudio.com/), como parte del curso [GF-0604 Procesamiento de datos geográficos](https://gf0604-procesamientodatosgeograficos.github.io/2022-i/) de la [Escuela de Geografía](https://www.geografia.fcs.ucr.ac.cr/) de la [Universidad de Costa Rica](https://www.ucr.ac.cr/), impartido durante el primer ciclo lectivo de 2022. El código fuente se encuentra en [https://github.com/gf0604-procesamientodatosgeograficos/2022-i-tarea-02-delitos-rmarkdown](https://github.com/gf0604-procesamientodatosgeograficos/2022-i-tarea-02-delitos-rmarkdown).
 
 
+
 ### Paquetes de R
 Las visualizaciones fueron desarrolladas en el lenguaje de programación [R](https://www.R-project.org/) y los paquetes utilizados para la realización de la tarea 3 fueron : flexdashboard, readxl, lubridate,dplyr, ggplot2, ggthemes, plotly, DT, leaflet y readr
 
@@ -23,21 +24,21 @@ Las visualizaciones fueron desarrolladas en el lenguaje de programación [R](htt
 # Carga de paquetes
 
 library(flexdashboard)
-library(readxl) # lectura de datos en Excel
-library(lubridate) # manejo de fechas
-library(dplyr) # manipulación de datos
-library(ggplot2) # graficación estadística
-library(ggthemes) # estilos para ggplot2 
-library(plotly) # graficación estadística
-library(DT) # tablas interactivas
+library(readxl)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(plotly) 
+library(DT)
 library(leaflet)
 library(readr)
 library(sf)
 library(stringi)
 ```
 
-### Datos
-#### Estadísticas policiales
+### Datos de estadísticas policiales
+#### Referencia
 Es un [archivo Excel (.xls)](estadisticaspoliciales2021.xls) con registros de delitos cometidos en Costa Rica durante el año 2021. Es publicado regularmente por el Organismo de Investigación Judicial (OIJ) en el sitio web [Datos abiertos del OIJ](https://sitiooij.poder-judicial.go.cr/index.php/ayuda/servicios-policiales/servicios-a-organizaciones/indice-de-transparencia-del-sector-publico-costarricense/datos-abiertos).
 
 ```{r lectura-transformacion.datos-delitos}
@@ -169,12 +170,10 @@ cantones_simplificados <-
 ```
 
 ```{r Normalización de nombres}
-# En el data frame de cantones
 cantones_simplificados <-
   cantones_simplificados %>%
   mutate(canton_normalizado = tolower(stri_trans_general(canton, id = "Latin-ASCII")))
 
-# En el data frame de delitos
 estadisticas_policiales <-
   estadisticas_policiales %>%
   mutate(canton_normalizado = tolower(stri_trans_general(Canton, id = "Latin-ASCII")))
@@ -240,13 +239,13 @@ Column {data-weidth= 600}
 --------------------------------------------------
 
 ### Tabla de datos de delito por cantón
-```{r}
-# Conteo de registros por código de cantón
+```{r Datos de delito por cantón}
+
 delitos_por_canton <-
   estadisticas_policiales %>%
   count(cod_canton, name = "Delitos")
 
-# Unión de cantidad de delitos por cantón a cantones
+
 cantones_simplificados_por_delitos <-
   cantones_simplificados %>%
   left_join(
@@ -256,7 +255,7 @@ cantones_simplificados_por_delitos <-
     keep = FALSE
   )
 
-# Visualización en formato de tabla
+
 cantones_simplificados_por_delitos %>%
   st_drop_geometry() %>%
   select(canton, Delitos) %>%
@@ -293,13 +292,12 @@ plot(
 ### Mapa en leaflet
 ```{r Mapa coropletas}
 leaflet() %>%
-  setView(# centro y nivel inicial de acercamiento
+  setView(
     lng = -84.19452,
     lat = 9.572735,
     zoom = 7) %>%
-  addTiles(group = "OpenStreetMap") %>% # capa base
+  addTiles(group = "OpenStreetMap") %>% 
   addPolygons(
-    # capa de polígonos
     data = cantones_simplificados_por_delitos,
     fillColor = ~ colores_cantones_delitos(cantones_simplificados_por_delitos$Delitos),
     fillOpacity = 0.8,
@@ -307,7 +305,7 @@ leaflet() %>%
     stroke = TRUE,
     weight = 1.0,
     popup = paste(
-      # ventana emergente
+     
       paste(
         "<strong>Cantón:</strong>",
         cantones_simplificados_por_delitos$canton
@@ -321,12 +319,10 @@ leaflet() %>%
     group = "Delitos en cantones"
   ) %>%
   addLayersControl(
-    # control de capas
     baseGroups = c("OpenStreetMap"),
     overlayGroups = c("Delitos en cantones")
   ) %>%
   addLegend(
-    # leyenda
     position = "bottomleft",
     pal = colores_cantones_delitos,
     values = cantones_simplificados_por_delitos$Delitos,
